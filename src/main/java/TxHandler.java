@@ -23,9 +23,8 @@ public class TxHandler {
 
   private boolean isValidCoinSignature(Transaction tx, int index, UTXO utxo, Transaction.Input input) {
     Transaction.Output correspondingOutput = _utxoPool.getTxOutput(utxo);
-    PublicKey pk = correspondingOutput.address;
 
-    return Crypto.verifySignature(pk, tx.getRawDataToSign(index), input.signature);
+    return Crypto.verifySignature(correspondingOutput.address, tx.getRawDataToSign(index), input.signature);
   }
 
   private boolean isCoinAvailable(UTXO utxo) {
@@ -47,9 +46,8 @@ public class TxHandler {
     double inputSum = 0;
     double outputSum = 0;
 
-    List<Transaction.Input> inputs = tx.getInputs();
-    for (int i = 0; i < inputs.size(); ++i) {
-      Transaction.Input input = inputs.get(i);
+    for (int i = 0; i < tx.numInputs(); ++i) {
+      Transaction.Input input = tx.getInput(i);
       UTXO utxo = new UTXO(input.prevTxHash, input.outputIndex);
 
       //check 1: all outputs claimed by tx are in current UTXO pool
@@ -67,15 +65,14 @@ public class TxHandler {
         return false;
       }
 
-      Transaction.Output correspondingOutput = _utxoPool.getTxOutput(utxo);
-      inputSum += correspondingOutput.value;
+      Transaction.Output output  = _utxoPool.getTxOutput(utxo);
+      inputSum += output.value;
     }
 
-    List <Transaction.Output> outputs = tx.getOutputs();
-    for (Transaction.Output output : outputs) {
+    for (Transaction.Output output : tx.getOutputs()) {
 
       //check 4: all of tx output values are non-negative
-      if (output.value <= 0) {
+      if (output.value < 0) {
         return false;
       }
 
@@ -83,7 +80,7 @@ public class TxHandler {
     }
 
     //check 5: the sum of tx input values is greater than or equal to the sum of its output values
-    return !(outputSum > inputSum);
+    return inputSum >= outputSum;
   }
 
   private void addNewCoinsToPool(Transaction tx) {
@@ -108,7 +105,7 @@ public class TxHandler {
    * of accepted transactions, and updating the current UTXO pool as appropriate.
    */
   public Transaction[] handleTxs(Transaction[] possibleTxs) {
-    List <Transaction> validTxs = new ArrayList<>();
+    Set<Transaction> validTxs = new HashSet<>();
     for (Transaction tx : possibleTxs) {
       if (isValidTx(tx)) {
         validTxs.add(tx);
@@ -118,9 +115,7 @@ public class TxHandler {
       }
     }
 
-    Transaction[] result = new Transaction[validTxs.size()];
-    validTxs.toArray(result);
-
-    return result;
+    Transaction[] validTxArray = new Transaction[validTxs.size()];
+    return validTxs.toArray(validTxArray);
   }
 }
